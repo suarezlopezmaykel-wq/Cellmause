@@ -11,7 +11,8 @@ import android.content.pm.PackageManager
 import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
-import android.view.Gravity
+import android.os.Handler
+import android.os.Looper
 import android.view.MotionEvent
 import android.view.View
 import android.widget.Button
@@ -25,11 +26,11 @@ class MainActivity : Activity() {
 
     private var hid: BluetoothHidDevice? = null
     private var host: BluetoothDevice? = null
+    private var registered = false
     private lateinit var status: TextView
     private val exec = Executors.newSingleThreadExecutor()
-    private var leftDown = false
+    private val ui = Handler(Looper.getMainLooper())
 
-    // Descriptor HID: mouse de 3 botones + X, Y y rueda (reporte de 4 bytes)
     private val descriptor = byteArrayOf(
         0x05, 0x01, 0x09, 0x02, 0xA1.toByte(), 0x01, 0x09, 0x01, 0xA1.toByte(), 0x00,
         0x05, 0x09, 0x19, 0x01, 0x29, 0x03, 0x15, 0x00, 0x25, 0x01,
@@ -40,47 +41,77 @@ class MainActivity : Activity() {
         0xC0.toByte(), 0xC0.toByte()
     )
 
+    private fun setStatus(msg: String) = runOnUiThread { status.text = msg }
+
     private val callback = object : BluetoothHidDevice.Callback() {
+        override fun onAppStatusChanged(pluggedDevice: BluetoothDevice?, isRegistered: Boolean) {
+            registered = isRegistered
+            setStatus(
+                if (isRegistered) "HID registrado. Pulsa «Conectar» o conecta desde la PC."
+                else "HID NO registrado. Pulsa «Reiniciar HID»."
+            )
+        }
+
         override fun onConnectionStateChanged(device: BluetoothDevice, state: Int) {
-            runOnUiThread {
-                if (state == BluetoothProfile.STATE_CONNECTED) {
+            when (state) {
+                BluetoothProfile.STATE_CONNECTED -> {
                     host = device
-                    status.text = "Conectado: ${device.name}"
-                } else if (device == host) {
+                    setStatus("Conectado: ${device.name ?: device.address}")
+                }
+                BluetoothProfile.STATE_CONNECTING ->
+                    setStatus("Conectando con ${device.name ?: device.address}…")
+                else -> if (device == host || host == null) {
                     host = null
-                    status.text = "Desconectado"
+                    setStatus("Desconectado")
                 }
             }
+        }
+
+        override fun onGetReport(device: BluetoothDevice, type: Byte, id: Byte, bufferSize: Int) {
+            hid?.replyReport(device, type, id, byteArrayOf(0, 0, 0, 0))
+        }
+
+        override fun onSetReport(device: BluetoothDevice, type: Byte, id: Byte, data: ByteArray) {
+            hid?.reportError(device, BluetoothHidDevice.ERROR_RSP_UNSUPPORTED_REQ)
         }
     }
 
     private val profileListener = object : BluetoothProfile.ServiceListener {
         override fun onServiceConnected(profile: Int, proxy: BluetoothProfile) {
             if (profile != BluetoothProfile.HID_DEVICE) return
-            val h = proxy as BluetoothHidDevice
-            hid = h
-            val sdp = BluetoothHidDeviceAppSdpSettings(
-                "BT Mouse", "Mouse virtual", "Android",
-                BluetoothHidDevice.SUBCLASS1_MOUSE, descriptor
-            )
-            h.registerApp(sdp, null, null, exec, callback)
-            runOnUiThread { status.text = "Listo. Pulsa «Conectar»." }
+            hid = proxy as BluetoothHidDevice
+            registerHid()
         }
 
         override fun onServiceDisconnected(profile: Int) {
             hid = null
-            runOnUiThread { status.text = "Servicio HID no disponible" }
+            registered = false
+            setStatus("Servicio HID no disponible")
         }
+    }
+
+    private fun registerHid() {
+        val h = hid ?: return
+        val sdp = BluetoothHidDeviceAppSdpSettings(
+            "BT Mouse", "Mouse virtual", "Android",
+            BluetoothHidDevice.SUBCLASS1_MOUSE, descriptor
+        )
+        val ok = h.registerApp(sdp, null, null, exec, callback)
+        if (!ok) setStatus("registerApp falló (¿otra app usa HID?)")
+    }
+
+    private fun restartHid() {
+        setStatus("Reiniciando HID…")
+        hid?.unregisterApp()
+        host = null
+        registered = false
+        ui.postDelayed({ registerHid() }, 800)
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         buildUi()
-        if (needsPermissions()) {
-            requestPermissions(permissions(), 1)
-        } else {
-            startHid()
-        }
+        if (needsPermissions()) requestPermissions(permissions(), 1) else startHid()
     }
 
     private fun permissions(): Array<String> =
@@ -120,55 +151,58 @@ class MainActivity : Activity() {
         }
         root.addView(status)
 
-        val top = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        top.addView(Button(this).apply {
-            text = "Conectar"
-            setOnClickListener { pickDevice() }
-        }, LinearLayout.LayoutParams(0, -2, 1f))
-        top.addView(Button(this).apply {
-            text = "Hacer visible"
-            setOnClickListener {
-                startActivity(Intent(BluetoothAdapter.ACTION_REQUEST_DISCOVERABLE).apply {
-                    putExtra(BluetoothAdapter.EXTRA_DISCOVERABLE_DURATION, 120)
-                })
-            }
-        }, LinearLayout.LayoutParams(0, -2, 1f))
-        root.addView(top)
+        fun row(vararg b: Button) = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            b.forEach { addView(it, LinearLayout.LayoutParams(0, -2, 1f)) }
+        }
+
+        root.addView(row(
+            Button(this).apply { text = "Conectar"; setOnClickListener { pickDevice() } },
+            Button(this).apply {
+                text = "Hacer visible"
+                setOnClickListener {
+                    startActivity(Intent(BluetoothAdapter.ACTION_REQUEST_DISCOVERABLE).apply {
+                        putExtra(BluetoothAdapter.EXTRA_DISCOVERABLE_DURATION, 120)
+                    })
+                }
+            },
+            Button(this).apply { text = "Reiniciar HID"; setOnClickListener { restartHid() } }
+        ))
 
         root.addView(Touchpad(this), LinearLayout.LayoutParams(-1, 0, 1f).apply {
             setMargins(16, 16, 16, 16)
         })
 
-        val buttons = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        buttons.addView(Button(this).apply {
-            text = "Clic izq."
-            setOnClickListener { click(1) }
-        }, LinearLayout.LayoutParams(0, 160, 1f))
-        buttons.addView(Button(this).apply {
-            text = "Clic der."
-            setOnClickListener { click(2) }
-        }, LinearLayout.LayoutParams(0, 160, 1f))
-        root.addView(buttons)
+        val l = Button(this).apply { text = "Clic izq."; setOnClickListener { click(1) } }
+        val r = Button(this).apply { text = "Clic der."; setOnClickListener { click(2) } }
+        root.addView(LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            addView(l, LinearLayout.LayoutParams(0, 160, 1f))
+            addView(r, LinearLayout.LayoutParams(0, 160, 1f))
+        })
 
         setContentView(root)
     }
 
     private fun pickDevice() {
+        if (!registered) {
+            status.text = "HID no registrado. Pulsa «Reiniciar HID»."
+            return
+        }
         val adapter = (getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager).adapter
         val list = adapter?.bondedDevices?.toList().orEmpty()
         if (list.isEmpty()) {
-            status.text = "Vincula primero el teléfono desde los ajustes Bluetooth de la PC"
+            status.text = "Sin dispositivos vinculados. Pulsa «Hacer visible» y vincula desde la PC."
             return
         }
         AlertDialog.Builder(this)
             .setTitle("Dispositivo")
             .setItems(list.map { it.name ?: it.address }.toTypedArray()) { _, i ->
-                hid?.connect(list[i])
-                status.text = "Conectando…"
+                val ok = hid?.connect(list[i]) ?: false
+                status.text = if (ok) "Conectando…" else "connect() falló. Reinicia HID y reintenta."
             }.show()
     }
 
-    // ---- Envío de reportes ----
     private fun send(buttons: Int, dx: Int, dy: Int, wheel: Int) {
         val d = host ?: return
         hid?.sendReport(
@@ -187,7 +221,6 @@ class MainActivity : Activity() {
         send(0, 0, 0, 0)
     }
 
-    // ---- Touchpad ----
     inner class Touchpad(ctx: Context) : View(ctx) {
         private var lastX = 0f
         private var lastY = 0f
@@ -214,19 +247,16 @@ class MainActivity : Activity() {
                     val dy = e.y - lastY
                     lastX = e.x; lastY = e.y
                     moved += abs(dx) + abs(dy)
-                    if (e.pointerCount >= 2) {
-                        send(if (leftDown) 1 else 0, 0, 0, (-dy / 6).toInt())
-                    } else {
-                        send(if (leftDown) 1 else 0, (dx * 1.5f).toInt(), (dy * 1.5f).toInt(), 0)
-                    }
+                    if (e.pointerCount >= 2) send(0, 0, 0, (-dy / 6).toInt())
+                    else send(0, (dx * 1.5f).toInt(), (dy * 1.5f).toInt(), 0)
                 }
                 MotionEvent.ACTION_UP -> {
                     val dur = e.eventTime - downTime
                     if (moved < 20f) {
                         when {
-                            maxPointers >= 2 -> click(2)   // toque con 2 dedos = clic derecho
-                            dur > 500 -> click(2)          // pulsación larga = clic derecho
-                            else -> click(1)               // toque = clic izquierdo
+                            maxPointers >= 2 -> click(2)
+                            dur > 500 -> click(2)
+                            else -> click(1)
                         }
                     }
                 }
