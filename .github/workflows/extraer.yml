@@ -1,1 +1,51 @@
-t
+name: Extraer ZIP y compilar APK
+
+on:
+  push:
+    paths:
+      - 'BTMouse.zip'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  extraer-y-compilar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Extraer BTMouse.zip
+        run: |
+          if [ -f BTMouse.zip ]; then
+            unzip -q BTMouse.zip -d _tmp
+            SRC=_tmp
+            [ -d _tmp/BTMouse ] && SRC=_tmp/BTMouse
+            rm -rf "$SRC/.github"
+            cp -a "$SRC"/. .
+            rm -rf _tmp BTMouse.zip
+            git config user.name "github-actions"
+            git config user.email "actions@github.com"
+            git add -A
+            git commit -m "Extraer proyecto desde BTMouse.zip"
+            git push
+          else
+            echo "No hay BTMouse.zip; se usa el proyecto ya extraído."
+          fi
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: 8.7
+
+      - name: Compilar APK debug
+        run: gradle assembleDebug
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: BTMouse-debug
+          path: app/build/outputs/apk/debug/app-debug.apk
