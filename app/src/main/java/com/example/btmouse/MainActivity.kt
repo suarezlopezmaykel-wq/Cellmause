@@ -13,8 +13,6 @@ import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.os.Bundle
-import android.os.Handler
-import android.os.Looper
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
@@ -29,10 +27,9 @@ class MainActivity : Activity() {
 
     private var hid: BluetoothHidDevice? = null
     private var host: BluetoothDevice? = null
-    private var registered = false
     private lateinit var status: TextView
     private val exec = Executors.newSingleThreadExecutor()
-    private val ui = Handler(Looper.getMainLooper())
+    private var leftDown = false
 
     // Descriptor HID: mouse de 3 botones + X, Y y rueda (reporte de 4 bytes)
     private val descriptor = byteArrayOf(
@@ -45,28 +42,20 @@ class MainActivity : Activity() {
         0xC0.toByte(), 0xC0.toByte()
     )
 
-    private fun setStatus(msg: String) = runOnUiThread { status.text = msg }
+    private fun dpToPx(dp: Int): Int {
+        val density = resources.displayMetrics.density
+        return (dp * density).toInt()
+    }
 
     private val callback = object : BluetoothHidDevice.Callback() {
-        override fun onAppStatusChanged(pluggedDevice: BluetoothDevice?, isRegistered: Boolean) {
-            registered = isRegistered
-            setStatus(
-                if (isRegistered) "HID registrado. Pulsa «Conectar» o conecta desde la PC."
-                else "HID NO registrado. Pulsa «Reiniciar HID»."
-            )
-        }
-
         override fun onConnectionStateChanged(device: BluetoothDevice, state: Int) {
-            when (state) {
-                BluetoothProfile.STATE_CONNECTED -> {
+            runOnUiThread {
+                if (state == BluetoothProfile.STATE_CONNECTED) {
                     host = device
-                    setStatus("Conectado: ${device.name ?: device.address}")
-                }
-                BluetoothProfile.STATE_CONNECTING ->
-                    setStatus("Conectando con ${device.name ?: device.address}…")
-                else -> if (device == host || host == null) {
+                    status.text = "Conectado: ${device.name}"
+                } else if (device == host) {
                     host = null
-                    setStatus("Desconectado")
+                    status.text = "Desconectado"
                 }
             }
         }
@@ -83,39 +72,30 @@ class MainActivity : Activity() {
     private val profileListener = object : BluetoothProfile.ServiceListener {
         override fun onServiceConnected(profile: Int, proxy: BluetoothProfile) {
             if (profile != BluetoothProfile.HID_DEVICE) return
-            hid = proxy as BluetoothHidDevice
-            registerHid()
+            val h = proxy as BluetoothHidDevice
+            hid = h
+            val sdp = BluetoothHidDeviceAppSdpSettings(
+                "BT Mouse", "Mouse virtual", "Android",
+                BluetoothHidDevice.SUBCLASS1_MOUSE, descriptor
+            )
+            h.registerApp(sdp, null, null, exec, callback)
+            runOnUiThread { status.text = "Listo. Pulsa «Conectar»." }
         }
 
         override fun onServiceDisconnected(profile: Int) {
             hid = null
-            registered = false
-            setStatus("Servicio HID no disponible")
+            runOnUiThread { status.text = "Servicio HID no disponible" }
         }
-    }
-
-    private fun registerHid() {
-        val h = hid ?: return
-        val sdp = BluetoothHidDeviceAppSdpSettings(
-            "BT Mouse", "Mouse virtual", "Android",
-            BluetoothHidDevice.SUBCLASS1_MOUSE, descriptor
-        )
-        val ok = h.registerApp(sdp, null, null, exec, callback)
-        if (!ok) setStatus("registerApp falló (¿otra app usa HID?)")
-    }
-
-    private fun restartHid() {
-        setStatus("Reiniciando HID…")
-        hid?.unregisterApp()
-        host = null
-        registered = false
-        ui.postDelayed({ registerHid() }, 800)
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         buildUi()
-        if (needsPermissions()) requestPermissions(permissions(), 1) else startHid()
+        if (needsPermissions()) {
+            requestPermissions(permissions(), 1)
+        } else {
+            startHid()
+        }
     }
 
     private fun permissions(): Array<String> =
@@ -149,13 +129,13 @@ class MainActivity : Activity() {
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setBackgroundColor(Color.parseColor("#F4F6F9"))
-            setPadding(16, 16, 16, 16)
+            setPadding(dpToPx(12), dpToPx(12), dpToPx(12), dpToPx(12))
         }
 
         status = TextView(this).apply {
             text = "Iniciando…"
-            setPadding(12, 12, 12, 16)
-            textSize = 14f
+            setPadding(dpToPx(8), dpToPx(8), dpToPx(8), dpToPx(12))
+            textSize = 15f
             setTextColor(Color.parseColor("#1E293B"))
             typeface = Typeface.DEFAULT_BOLD
             gravity = Gravity.CENTER_HORIZONTAL
@@ -165,14 +145,14 @@ class MainActivity : Activity() {
         fun createButton(btnText: String, isPrimary: Boolean, onClick: () -> Unit): Button {
             return Button(this).apply {
                 text = btnText
-                textSize = 12f
+                textSize = 13f
                 setTextColor(if (isPrimary) Color.WHITE else Color.parseColor("#0F172A"))
                 typeface = Typeface.DEFAULT_BOLD
-                elevation = 4f
+                elevation = dpToPx(2).toFloat()
                 background = GradientDrawable().apply {
                     shape = GradientDrawable.RECTANGLE
                     setColor(if (isPrimary) Color.parseColor("#007CFB") else Color.parseColor("#E2E8F0"))
-                    cornerRadius = 24f
+                    cornerRadius = dpToPx(12).toFloat()
                 }
                 setOnClickListener { onClick() }
             }
@@ -185,48 +165,48 @@ class MainActivity : Activity() {
                 putExtra(BluetoothAdapter.EXTRA_DISCOVERABLE_DURATION, 120)
             })
         }
-        val btnRestart = createButton("Reiniciar HID", false) { restartHid() }
 
-        val paramsTop = LinearLayout.LayoutParams(0, 130, 1f).apply { setMargins(4, 0, 4, 12) }
+        val btnHeightTop = dpToPx(48)
+        val btnMargin = dpToPx(6)
 
-        top.addView(btnConnect, paramsTop)
-        top.addView(btnDiscover, LinearLayout.LayoutParams(0, 130, 1f).apply { setMargins(4, 0, 4, 12) })
-        top.addView(btnRestart, LinearLayout.LayoutParams(0, 130, 1f).apply { setMargins(4, 0, 4, 12) })
+        val paramsTop1 = LinearLayout.LayoutParams(0, btnHeightTop, 1f).apply { setMargins(btnMargin, 0, btnMargin, dpToPx(8)) }
+        val paramsTop2 = LinearLayout.LayoutParams(0, btnHeightTop, 1f).apply { setMargins(btnMargin, 0, btnMargin, dpToPx(8)) }
+
+        top.addView(btnConnect, paramsTop1)
+        top.addView(btnDiscover, paramsTop2)
         root.addView(top)
 
         root.addView(Touchpad(this), LinearLayout.LayoutParams(-1, 0, 1f).apply {
-            setMargins(4, 4, 4, 12)
+            setMargins(btnMargin, btnMargin, btnMargin, dpToPx(12))
         })
 
         val buttons = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         val btnLeft = createButton("Clic izq.", true) { click(1) }
         val btnRight = createButton("Clic der.", true) { click(2) }
 
-        val paramsBottom = LinearLayout.LayoutParams(0, 140, 1f).apply { setMargins(4, 0, 4, 0) }
+        val btnHeightBottom = dpToPx(56)
+        val paramsBottom1 = LinearLayout.LayoutParams(0, btnHeightBottom, 1f).apply { setMargins(btnMargin, 0, btnMargin, 0) }
+        val paramsBottom2 = LinearLayout.LayoutParams(0, btnHeightBottom, 1f).apply { setMargins(btnMargin, 0, btnMargin, 0) }
 
-        buttons.addView(btnLeft, paramsBottom)
-        buttons.addView(btnRight, LinearLayout.LayoutParams(0, 140, 1f).apply { setMargins(4, 0, 4, 0) })
+        buttons.addView(btnLeft, paramsBottom1)
+        buttons.addView(btnRight, paramsBottom2)
         root.addView(buttons)
 
         setContentView(root)
     }
 
     private fun pickDevice() {
-        if (!registered) {
-            status.text = "HID no registrado. Pulsa «Reiniciar HID»."
-            return
-        }
         val adapter = (getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager).adapter
         val list = adapter?.bondedDevices?.toList().orEmpty()
         if (list.isEmpty()) {
-            status.text = "Sin dispositivos vinculados. Pulsa «Hacer visible» y vincula desde la PC."
+            status.text = "Vincula primero el teléfono desde los ajustes Bluetooth de la PC"
             return
         }
         AlertDialog.Builder(this)
             .setTitle("Dispositivo")
             .setItems(list.map { it.name ?: it.address }.toTypedArray()) { _, i ->
-                val ok = hid?.connect(list[i]) ?: false
-                status.text = if (ok) "Conectando…" else "connect() falló. Reinicia HID y reintenta."
+                hid?.connect(list[i])
+                status.text = "Conectando…"
             }.show()
     }
 
@@ -261,8 +241,8 @@ class MainActivity : Activity() {
             background = GradientDrawable().apply {
                 shape = GradientDrawable.RECTANGLE
                 setColor(Color.parseColor("#EBF3FA"))
-                setStroke(3, Color.parseColor("#CBD5E1"))
-                cornerRadius = 32f
+                setStroke(dpToPx(1), Color.parseColor("#CBD5E1"))
+                cornerRadius = dpToPx(16).toFloat()
             }
         }
 
@@ -283,8 +263,11 @@ class MainActivity : Activity() {
                     val dy = e.y - lastY
                     lastX = e.x; lastY = e.y
                     moved += abs(dx) + abs(dy)
-                    if (e.pointerCount >= 2) send(0, 0, 0, (-dy / 6).toInt())
-                    else send(0, (dx * 1.5f).toInt(), (dy * 1.5f).toInt(), 0)
+                    if (e.pointerCount >= 2) {
+                        send(0, 0, 0, (-dy / 6).toInt())
+                    } else {
+                        send(0, (dx * 1.5f).toInt(), (dy * 1.5f).toInt(), 0)
+                    }
                 }
                 MotionEvent.ACTION_UP -> {
                     val dur = e.eventTime - downTime
