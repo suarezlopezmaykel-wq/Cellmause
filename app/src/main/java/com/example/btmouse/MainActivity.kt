@@ -29,7 +29,6 @@ class MainActivity : Activity() {
     private var host: BluetoothDevice? = null
     private lateinit var status: TextView
     private val exec = Executors.newSingleThreadExecutor()
-    private var leftDown = false
 
     // Descriptor HID: mouse de 3 botones + X, Y y rueda (reporte de 4 bytes)
     private val descriptor = byteArrayOf(
@@ -58,14 +57,6 @@ class MainActivity : Activity() {
                     status.text = "Desconectado"
                 }
             }
-        }
-
-        override fun onGetReport(device: BluetoothDevice, type: Byte, id: Byte, bufferSize: Int) {
-            hid?.replyReport(device, type, id, byteArrayOf(0, 0, 0, 0))
-        }
-
-        override fun onSetReport(device: BluetoothDevice, type: Byte, id: Byte, data: ByteArray) {
-            hid?.reportError(device, BluetoothHidDevice.ERROR_RSP_UNSUPPORTED_REQ)
         }
     }
 
