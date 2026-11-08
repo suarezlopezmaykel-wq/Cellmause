@@ -1,6 +1,15 @@
 name: Build Cellmause APK
 
 on:
+  push:
+    branches:
+      - 'fix/cellmause-hid-stability'
+    paths:
+      - 'app/**'
+      - 'build.gradle.kts'
+      - 'settings.gradle.kts'
+      - 'gradle.properties'
+      - '.github/workflows/build-apk.yml'
   pull_request:
     paths:
       - 'app/**'
