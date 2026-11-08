@@ -26,7 +26,8 @@ class MainActivity : Activity() {
     private var host: BluetoothDevice? = null
     private lateinit var status: TextView
     private val exec = Executors.newSingleThreadExecutor()
-    private var hidRegistered = false
+    @Volatile private var hidRegistered = false
+    @Volatile private var hidRegistrationPending = false
     private var isForeground = false
     private var leftDown = false
 
@@ -43,9 +44,11 @@ class MainActivity : Activity() {
 
     private val callback = object : BluetoothHidDevice.Callback() {
         override fun onAppStatusChanged(pluggedDevice: BluetoothDevice?, registered: Boolean) {
+            hidRegistrationPending = false
             hidRegistered = registered
             runOnUiThread {
                 if (registered) {
+                    host = pluggedDevice
                     status.text = if (host == null) {
                         "Bluetooth HID listo. Pulsa «Conectar»."
                     } else {
@@ -85,6 +88,7 @@ class MainActivity : Activity() {
         override fun onServiceDisconnected(profile: Int) {
             hid = null
             hidRegistered = false
+            hidRegistrationPending = false
             host = null
             runOnUiThread { status.text = "Servicio HID no disponible" }
         }
@@ -113,13 +117,15 @@ class MainActivity : Activity() {
 
     private fun registerHidApp() {
         val device = hid ?: return
-        if (!isForeground || hidRegistered) return
+        if (!isForeground || hidRegistered || hidRegistrationPending) return
+        hidRegistrationPending = true
 
         val sdp = BluetoothHidDeviceAppSdpSettings(
             "BT Mouse", "Mouse virtual", "Android",
             BluetoothHidDevice.SUBCLASS1_MOUSE, descriptor
         )
         val accepted = device.registerApp(sdp, null, null, exec, callback)
+        if (!accepted) hidRegistrationPending = false
         runOnUiThread {
             status.text = if (accepted) {
                 "Registrando Bluetooth HID…"
@@ -311,6 +317,7 @@ class MainActivity : Activity() {
         }
         hid = null
         hidRegistered = false
+        hidRegistrationPending = false
         exec.shutdownNow()
         super.onDestroy()
     }
