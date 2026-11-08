@@ -23,6 +23,7 @@ Archivo: `app/src/main/java/com/example/btmouse/MainActivity.kt`
 
 - Se implementó `onAppStatusChanged` para conocer cuándo Android registra o desregistra la aplicación HID.
 - Se comprueba el resultado inmediato de `registerApp()`.
+- Se evita iniciar registros simultáneos mientras llega la respuesta asíncrona de Android; el estado compartido de registro es visible entre hilos.
 - Se evita solicitar conexiones antes de que el registro HID esté confirmado.
 - Se comprueba el resultado inmediato de `connect()`.
 - Se comprueba el estado de registro antes de enviar reportes y se devuelve el resultado de `sendReport()`.
@@ -44,7 +45,7 @@ Archivo nuevo: `.github/workflows/build-apk.yml`
 ## Validación y límites
 
 - Revisión estática de los archivos antes de la modificación: realizada.
-- Compilación de esta rama: pendiente de la ejecución de GitHub Actions.
+- Compilación de esta rama: pendiente de ejecución de GitHub Actions; el workflow incluye disparador de push en esta rama para que pueda ejecutarse sin modificar `main`.
 - Prueba en Samsung Galaxy A03 Core u otro dispositivo Android: pendiente.
 - Prueba de conexión HID real con PC: pendiente.
 - No se afirma que la aplicación ya esté validada en ejecución.
