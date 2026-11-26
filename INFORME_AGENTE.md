@@ -80,3 +80,15 @@ Esta rama contiene una primera corrección de recursos y una mejora del control 
 - No se modifica el descriptor HID, el registro, la conexión, el envío de reportes, la selección de dispositivos ni la interpretación de gestos.
 - El rediseño es exclusivamente visual y de disposición.
 - Pendiente: compilación automatizada de esta propuesta y comprobación visual/funcional en el Samsung Galaxy A03 Core y con un ordenador.
+
+
+### Resultado de compilación (26-11-2026)
+- GitHub Actions workflow run #5: `45913343546`.
+- Resultado: `success`; el job `Compile debug APK` y la subida del artefacto terminaron correctamente.
+- Artefacto: `Cellmause-debug`, ID `15161133268`.
+- Tamaño del artefacto ZIP: 1,032,358 bytes.
+- SHA-256 del artefacto: `b5d520a4172e164fa4c2beac30787f1644f6e986076993a65a2c242c629a2cbc`.
+- Commit de la rama: `2db803511dad49aab665b19892e61ca9ceea60f6`.
+- Run: https://github.com/suarezlopezmaykel-wq/Cellmause/actions/runs/45913343546
+- PR #3: https://github.com/suarezlopezmaykel-wq/Cellmause/pull/3
+- La compilación está verificada por CI. No equivale a una prueba de instalación, renderizado o funcionamiento Bluetooth HID en un dispositivo físico; esas pruebas siguen pendientes.
