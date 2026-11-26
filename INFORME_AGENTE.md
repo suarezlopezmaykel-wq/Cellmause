@@ -57,3 +57,26 @@ Archivo nuevo: `.github/workflows/build-apk.yml`
 
 ## Resultado
 Esta rama contiene una primera corrección de recursos y una mejora del control HID, además de un workflow dedicado para verificar la compilación. No fusionar sin revisar el resultado de Actions y probar la conexión Bluetooth real.
+
+
+---
+
+## Segunda intervención: rediseño visual de la interfaz
+
+- Rama: `design/cellmause-ui-refresh`
+- Base: `fix/cellmause-hid-stability` (versión de referencia 0.1).
+- Commit de interfaz: `d74924c327129a50c94603be132494ac2d19bcca`.
+
+### Cambios visuales
+- Se adopta una paleta oscura azul marino con contraste claro y acento azul.
+- Se incorpora encabezado con nombre y descripción de la aplicación.
+- El estado Bluetooth se presenta en una tarjeta diferenciada.
+- Los botones principales y de clic reciben fondos redondeados, tipografía y tamaños coherentes.
+- El panel táctil recibe fondo oscuro, borde redondeado y guías visuales discretas.
+- Las medidas de la nueva interfaz se expresan en dp para adaptarse mejor a distintas densidades de pantalla.
+- Se conserva una distribución vertical compacta con panel táctil flexible.
+
+### Límites de alcance
+- No se modifica el descriptor HID, el registro, la conexión, el envío de reportes, la selección de dispositivos ni la interpretación de gestos.
+- El rediseño es exclusivamente visual y de disposición.
+- Pendiente: compilación automatizada de esta propuesta y comprobación visual/funcional en el Samsung Galaxy A03 Core y con un ordenador.
