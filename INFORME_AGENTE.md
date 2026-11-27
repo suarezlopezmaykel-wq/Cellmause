@@ -57,3 +57,38 @@ Archivo nuevo: `.github/workflows/build-apk.yml`
 
 ## Resultado
 Esta rama contiene una primera corrección de recursos y una mejora del control HID, además de un workflow dedicado para verificar la compilación. No fusionar sin revisar el resultado de Actions y probar la conexión Bluetooth real.
+
+
+---
+
+## Segunda intervención: rediseño visual de la interfaz
+
+- Rama: `design/cellmause-ui-refresh`
+- Base: `fix/cellmause-hid-stability` (versión de referencia 0.1).
+- Commit de interfaz: `d74924c327129a50c94603be132494ac2d19bcca`.
+
+### Cambios visuales
+- Se adopta una paleta oscura azul marino con contraste claro y acento azul.
+- Se incorpora encabezado con nombre y descripción de la aplicación.
+- El estado Bluetooth se presenta en una tarjeta diferenciada.
+- Los botones principales y de clic reciben fondos redondeados, tipografía y tamaños coherentes.
+- El panel táctil recibe fondo oscuro, borde redondeado y guías visuales discretas.
+- Las medidas de la nueva interfaz se expresan en dp para adaptarse mejor a distintas densidades de pantalla.
+- Se conserva una distribución vertical compacta con panel táctil flexible.
+
+### Límites de alcance
+- No se modifica el descriptor HID, el registro, la conexión, el envío de reportes, la selección de dispositivos ni la interpretación de gestos.
+- El rediseño es exclusivamente visual y de disposición.
+- Pendiente: compilación automatizada de esta propuesta y comprobación visual/funcional en el Samsung Galaxy A03 Core y con un ordenador.
+
+
+### Resultado de compilación (26-11-2026)
+- GitHub Actions workflow run #5: `45913343546`.
+- Resultado: `success`; el job `Compile debug APK` y la subida del artefacto terminaron correctamente.
+- Artefacto: `Cellmause-debug`, ID `15161133268`.
+- Tamaño del artefacto ZIP: 1,032,358 bytes.
+- SHA-256 del artefacto: `b5d520a4172e164fa4c2beac30787f1644f6e986076993a65a2c242c629a2cbc`.
+- Commit de la rama: `2db803511dad49aab665b19892e61ca9ceea60f6`.
+- Run: https://github.com/suarezlopezmaykel-wq/Cellmause/actions/runs/45913343546
+- PR #3: https://github.com/suarezlopezmaykel-wq/Cellmause/pull/3
+- La compilación está verificada por CI. No equivale a una prueba de instalación, renderizado o funcionamiento Bluetooth HID en un dispositivo físico; esas pruebas siguen pendientes.
