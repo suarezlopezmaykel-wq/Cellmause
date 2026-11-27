@@ -9,6 +9,12 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Color
+import android.content.res.ColorStateList
+import android.graphics.Canvas
+import android.graphics.Paint
+import android.graphics.Typeface
+import android.graphics.drawable.GradientDrawable
+import android.graphics.drawable.RippleDrawable
 import android.os.Build
 import android.os.Bundle
 import android.view.MotionEvent
@@ -166,44 +172,111 @@ class MainActivity : Activity() {
         }
     }
 
+    private fun dp(value: Int): Int =
+        (value * resources.displayMetrics.density + 0.5f).toInt()
+
+    private fun rounded(color: String, radius: Int, stroke: String? = null): GradientDrawable =
+        GradientDrawable().apply {
+            setColor(Color.parseColor(color))
+            cornerRadius = dp(radius).toFloat()
+            if (stroke != null) setStroke(dp(1), Color.parseColor(stroke))
+        }
+
+    private fun actionButton(label: String, color: String, textColor: String = "#FFFFFF"): Button =
+        Button(this).apply {
+            text = label
+            isAllCaps = false
+            textSize = 14f
+            typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+            setTextColor(Color.parseColor(textColor))
+            val shape = rounded(color, 15)
+            val rippleMask = rounded("#FFFFFF", 15)
+            background = RippleDrawable(
+                ColorStateList.valueOf(Color.parseColor("#55FFFFFF")),
+                shape,
+                rippleMask
+            )
+            stateListAnimator = null
+            minHeight = dp(50)
+            minimumHeight = dp(50)
+            setPadding(dp(12), 0, dp(12), 0)
+        }
+
     private fun buildUi() {
-        val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        val root = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(18), dp(14), dp(18), dp(16))
+            setBackgroundColor(Color.parseColor("#0B1220"))
+        }
+
+        val heading = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(0, dp(2), 0, dp(10))
+        }
+        heading.addView(TextView(this).apply {
+            text = "Cellmause"
+            textSize = 25f
+            typeface = Typeface.create("sans-serif", Typeface.BOLD)
+            setTextColor(Color.parseColor("#F4F7FC"))
+        })
+        heading.addView(TextView(this).apply {
+            text = "Tu teléfono como ratón Bluetooth"
+            textSize = 13f
+            setTextColor(Color.parseColor("#8FA3BD"))
+        })
+        root.addView(heading, LinearLayout.LayoutParams(-1, -2))
 
         status = TextView(this).apply {
-            text = "Iniciando…"
-            setPadding(24, 24, 24, 12)
-            textSize = 16f
+            text = "Iniciando Bluetooth…"
+            textSize = 13f
+            typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+            setTextColor(Color.parseColor("#DCE8F8"))
+            gravity = android.view.Gravity.CENTER_VERTICAL
+            setPadding(dp(14), dp(10), dp(14), dp(10))
+            minHeight = dp(48)
+            background = rounded("#17263A", 14, "#2A405D")
         }
-        root.addView(status)
+        root.addView(status, LinearLayout.LayoutParams(-1, -2).apply {
+            bottomMargin = dp(12)
+        })
 
-        val top = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        top.addView(Button(this).apply {
-            text = "Conectar"
+        val top = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+        }
+        top.addView(actionButton("Conectar", "#1677E8").apply {
             setOnClickListener { pickDevice() }
-        }, LinearLayout.LayoutParams(0, -2, 1f))
-        top.addView(Button(this).apply {
-            text = "Hacer visible"
+        }, LinearLayout.LayoutParams(0, dp(50), 1f).apply {
+            marginEnd = dp(6)
+        })
+        top.addView(actionButton("Hacer visible", "#24364D", "#E5EEF9").apply {
             setOnClickListener {
                 startActivity(Intent(BluetoothAdapter.ACTION_REQUEST_DISCOVERABLE).apply {
                     putExtra(BluetoothAdapter.EXTRA_DISCOVERABLE_DURATION, 120)
                 })
             }
-        }, LinearLayout.LayoutParams(0, -2, 1f))
+        }, LinearLayout.LayoutParams(0, dp(50), 1f).apply {
+            marginStart = dp(6)
+        })
         root.addView(top)
 
         root.addView(Touchpad(this), LinearLayout.LayoutParams(-1, 0, 1f).apply {
-            setMargins(16, 16, 16, 16)
+            topMargin = dp(14)
+            bottomMargin = dp(14)
         })
 
-        val buttons = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        buttons.addView(Button(this).apply {
-            text = "Clic izq."
+        val buttons = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+        }
+        buttons.addView(actionButton("●  Clic izquierdo", "#1B2B40", "#EAF2FC").apply {
             setOnClickListener { click(1) }
-        }, LinearLayout.LayoutParams(0, 160, 1f))
-        buttons.addView(Button(this).apply {
-            text = "Clic der."
+        }, LinearLayout.LayoutParams(0, dp(54), 1f).apply {
+            marginEnd = dp(6)
+        })
+        buttons.addView(actionButton("●  Clic derecho", "#1B2B40", "#EAF2FC").apply {
             setOnClickListener { click(2) }
-        }, LinearLayout.LayoutParams(0, 160, 1f))
+        }, LinearLayout.LayoutParams(0, dp(54), 1f).apply {
+            marginStart = dp(6)
+        })
         root.addView(buttons)
 
         setContentView(root)
@@ -262,7 +335,33 @@ class MainActivity : Activity() {
         private var moved = 0f
         private var maxPointers = 0
 
-        init { setBackgroundColor(Color.parseColor("#DDDDDD")) }
+        private val guidePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.parseColor("#526984")
+            strokeWidth = dp(1).toFloat()
+            style = Paint.Style.STROKE
+        }
+        private val labelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.parseColor("#7890AC")
+            textSize = dp(12).toFloat()
+            textAlign = Paint.Align.CENTER
+            typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+        }
+
+        init {
+            background = rounded("#111E30", 22, "#2A405D")
+            contentDescription = "Panel táctil: desliza para mover el puntero"
+        }
+
+        override fun onDraw(canvas: Canvas) {
+            super.onDraw(canvas)
+            val cx = width / 2f
+            val cy = height / 2f
+            val guide = dp(24).toFloat()
+            canvas.drawLine(cx - guide, cy, cx + guide, cy, guidePaint)
+            canvas.drawLine(cx, cy - guide, cx, cy + guide, guidePaint)
+            canvas.drawCircle(cx, cy, dp(38).toFloat(), guidePaint)
+            canvas.drawText("DESLIZA PARA MOVER", cx, height - dp(24).toFloat(), labelPaint)
+        }
 
         override fun onTouchEvent(e: MotionEvent): Boolean {
             when (e.actionMasked) {
