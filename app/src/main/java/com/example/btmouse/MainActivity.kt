@@ -9,10 +9,12 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Color
+import android.content.res.ColorStateList
 import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
+import android.graphics.drawable.RippleDrawable
 import android.os.Build
 import android.os.Bundle
 import android.view.MotionEvent
@@ -187,7 +189,13 @@ class MainActivity : Activity() {
             textSize = 14f
             typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
             setTextColor(Color.parseColor(textColor))
-            background = rounded(color, 15)
+            val shape = rounded(color, 15)
+            val rippleMask = rounded("#FFFFFF", 15)
+            background = RippleDrawable(
+                ColorStateList.valueOf(Color.parseColor("#55FFFFFF")),
+                shape,
+                rippleMask
+            )
             stateListAnimator = null
             minHeight = dp(50)
             minimumHeight = dp(50)
